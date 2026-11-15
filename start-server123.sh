@@ -48,10 +48,11 @@ if "$D" -H "$S" container inspect "$APP" >/dev/null 2>&1; then
     "$D" -H "$S" rm -f "$APP" >/dev/null
 fi
 "$D" -H "$S" run -d --name "$APP" --restart unless-stopped \
-  --network "$NETWORK" --memory 1g --pids-limit 256 \
+  --network "$NETWORK" --memory 2g --pids-limit 2048 \
   -p 127.0.0.1:18766:8080 \
   -v "$ROOT/app:/app:rw" \
   -w /app \
+  -e RELDENS_ALLOW_RUN_BUNDLER=0 \
   -e RELDENS_APP_HOST=http://0.0.0.0 \
   -e RELDENS_APP_PORT=8080 \
   -e RELDENS_PUBLIC_URL=https://jumper.suaveforge.com \
