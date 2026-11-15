@@ -11,7 +11,18 @@ assert src.is_file(), 'JUMPER_HYTOPIA_FRONTEND_NOT_BUILT'
 html=src.read_text()
 marker='id="jumper-default-server"'
 if marker in html:
-    print('JUMPER_HYTOPIA_DEFAULT_SERVER=ALREADY_SET')
+    old_redirect='location.replace(url.toString());'
+    fixed='history.replaceState(history.state, "", url.toString());'
+    if old_redirect in html:
+        html=html.replace(old_redirect,fixed,1)
+        tmp=src.with_name('.index.html.jumper-no-reload-tmp')
+        tmp.write_text(html)
+        os.replace(tmp,src)
+        print('JUMPER_HYTOPIA_DEFAULT_SERVER=FIXED_WITHOUT_RELOAD')
+    elif fixed in html:
+        print('JUMPER_HYTOPIA_DEFAULT_SERVER=ALREADY_FIXED')
+    else:
+        raise RuntimeError('JUMPER_UNRECOGNIZED_JOIN_SCRIPT')
     raise SystemExit(0)
 backup=Path('/eval/index.before-jumper-default-server.html')
 if not backup.exists():backup.write_text(html)
@@ -19,7 +30,7 @@ script='''<script id="jumper-default-server">
   if (!new URLSearchParams(location.search).has('join')) {
     const url = new URL(location.href);
     url.searchParams.set('join', 'api-jumper.suaveforge.com');
-    location.replace(url.toString());
+    history.replaceState(history.state, "", url.toString());
   }
 </script>
 '''
