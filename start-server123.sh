@@ -29,8 +29,10 @@ PY
 if ! "$D" -H "$S" container inspect "$DB" >/dev/null 2>&1; then
     "$D" -H "$S" run -d --name "$DB" --restart unless-stopped \
       --network "$NETWORK" --memory 512m --pids-limit 192 \
-      --env-file "$ROOT/secrets/db.env" -v "$ROOT/db:/var/lib/mysql" \
-      mariadb:11.4 >/dev/null
+      -v "$ROOT/secrets/db.env:/run/jumper-db.env:ro" \
+      -v "$ROOT/db:/var/lib/mysql" \
+      --entrypoint /bin/sh mariadb:11.4 \
+      -c 'set -a; . /run/jumper-db.env; exec /usr/local/bin/docker-entrypoint.sh mariadbd' >/dev/null
 else
     "$D" -H "$S" start "$DB" >/dev/null || true
 fi
