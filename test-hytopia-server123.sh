@@ -82,7 +82,7 @@ done
 "$D" -H "$S" run -d --name "$WEB" --restart unless-stopped \
   --network bridge --memory 700m --pids-limit 256 --security-opt no-new-privileges \
   -p 127.0.0.1:18772:5173 \
-  -v "$SRC:/src:ro" -w /src/client \
+  -v "$SRC:/src:rw" -w /src/client \
   "$IMAGE" node node_modules/vite/bin/vite.js preview --host 0.0.0.0 --port 5173 --strictPort >/dev/null
 server_ok=0
 web_ok=0
