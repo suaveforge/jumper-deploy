@@ -28,3 +28,4 @@ ROOT=/home/jumper
   -v "$ROOT/app:/app:rw" -w /app -e NODE_OPTIONS=--max-old-space-size=2048 \
   node:22-bookworm-slim node node_modules/reldens/bin/reldens-commands.js buildClient
 echo JUMPER_CLIENT_BUNDLE_REBUILT=YES
+bash "$(dirname "$0")/bust-browser-cache-server123.sh"
