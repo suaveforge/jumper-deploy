@@ -8,7 +8,7 @@ APP=sf-jumper
 DB=sf-jumper-db
 
 # Prepare dedicated volumes and secrets inside the daemon's host filesystem.
-"$D" -H "$S" run --rm --network none -v /home:/host-home:rw python:3.11-alpine python - <<'PY'
+"$D" -H "$S" run --rm -i --network none -v /home:/host-home:rw python:3.11-alpine python - <<'PY'
 from pathlib import Path
 import os,secrets
 root=Path('/host-home/jumper')
