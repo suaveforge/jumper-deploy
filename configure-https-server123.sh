@@ -19,6 +19,13 @@ text='''# Jumper isolated browser MMO. Backend only listens on loopback.
 jumper.suaveforge.com {
     encode gzip zstd
     reverse_proxy 127.0.0.1:18766
+    # Versioned Parcel files may keep identical URLs across regenerations.
+    # Revalidate the lobby, JS/CSS and config on every navigation instead
+    # of allowing a pre-install config and fresh HTML to be mixed by browsers.
+    @browserApp {
+        path / /index.html *.html *.js *.css *.json
+    }
+    header @browserApp Cache-Control "no-cache, max-age=0, must-revalidate"
     header {
         X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
