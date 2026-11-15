@@ -69,7 +69,7 @@ done
 code=$(curl -sS --max-time 20 --resolve jumper.suaveforge.com:443:127.0.0.1 \
   -o /tmp/jumper-legacy-retired-body -w '%{http_code}' https://jumper.suaveforge.com/)
 [ "$code" = 410 ] || { echo "RELDENS_RETIREMENT_UNVERIFIED HTTP=$code"; exit 1; }
-if grep -Eqi '(reldens demo|game-container|<form)' /tmp/jumper-legacy-retired-body; then
+if grep -Eqi '(game-container|<form|<canvas)' /tmp/jumper-legacy-retired-body; then
   echo RELDENS_FRONTEND_STILL_EXPOSED
   exit 1
 fi
