@@ -59,6 +59,11 @@ PY
   -e NODE_OPTIONS=--max-old-space-size=2048 \
   -v "$SRC:/src:rw" -w /src/client "$IMAGE" sh -ec '
     test -d node_modules || npm ci --no-audit --no-fund
+    if ! node -e "require(\u0027@rollup/rollup-linux-x64-gnu\u0027)" >/dev/null 2>&1; then
+      version=$(node -p "require(\u0027./node_modules/rollup/package.json\u0027).version")
+      echo "HYTOPIA_ROLLUP_OPTIONAL_BINARY_REPAIR_VERSION=$version"
+      npm install --no-save --no-package-lock --no-audit --no-fund "@rollup/rollup-linux-x64-gnu@$version"
+    fi
     npm run build
     test -s dist/index.html
     echo HYTOPIA_BROWSER_COMPILED=YES
