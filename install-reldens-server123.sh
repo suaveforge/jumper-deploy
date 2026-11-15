@@ -3,7 +3,7 @@ set -eu
 D=/home/ggul-docker/bin/docker
 S=unix:///home/ggul-docker/run/docker.sock
 ROOT=/home/jumper
-"$D" -H "$S" run --rm --network host \
+"$D" -H "$S" run --rm -i --network host \
   -v "$ROOT/secrets:/run/jumper-secrets:ro" \
   -v "$ROOT/app:/app:rw" \
   python:3.11-alpine python - <<'PY'
