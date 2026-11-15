@@ -28,7 +28,11 @@ try:
     new='''# JUMPER prototype HYTOPIA browser, no Reldens process is exposed.
 jumper.suaveforge.com {
     encode gzip zstd
-    reverse_proxy 127.0.0.1:18772
+    reverse_proxy 127.0.0.1:18772 {
+        # Vite preview allows its own loopback Host, but rejects the public domain.
+        # The browser-facing origin and TLS hostname remain jumper.suaveforge.com.
+        header_up Host 127.0.0.1:18772
+    }
     header {
         X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
