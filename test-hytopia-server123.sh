@@ -31,16 +31,34 @@ fi
 "$D" -H "$S" run --rm --network bridge --memory 3g --pids-limit 1024 \
   -e NODE_OPTIONS=--max-old-space-size=2048 \
   -v "$SRC:/src:rw" -w /src/server "$IMAGE" sh -ec '
-    npm ci --no-audit --no-fund
-    npm install -g --no-audit --no-fund bun@1.3.4
-    npm run build:playground
+    if ! test -s src/playground.mjs; then
+      npm ci --no-audit --no-fund
+      npm install -g --no-audit --no-fund bun@1.3.4
+      npm run build:playground
+    fi
     test -s src/playground.mjs
     echo HYTOPIA_SERVER_COMPILED=YES
   '
+# Upstream 2026-11-16 client source declares a health-check result which is
+# never used. Preserve the call while removing only the unused binding.
+"$D" -H "$S" run --rm -i --network none -v "$SRC:/src:rw" python:3.11-alpine python - <<'PY'
+from pathlib import Path
+p=Path('/src/client/src/network/NetworkManager.ts')
+data=p.read_text()
+old='const serverHealthy = await Servers.isCurrentServerHealthy().catch(() => false);'
+new='await Servers.isCurrentServerHealthy().catch(() => false);'
+if old in data:
+    p.write_text(data.replace(old,new,1))
+    print('HYTOPIA_TS6133_PATCH=APPLIED')
+elif new in data:
+    print('HYTOPIA_TS6133_PATCH=ALREADY_PRESENT')
+else:
+    raise RuntimeError('HYTOPIA_UPSTREAM_CODE_CHANGED')
+PY
 "$D" -H "$S" run --rm --network bridge --memory 3g --pids-limit 1024 \
   -e NODE_OPTIONS=--max-old-space-size=2048 \
   -v "$SRC:/src:rw" -w /src/client "$IMAGE" sh -ec '
-    npm ci --no-audit --no-fund
+    test -d node_modules || npm ci --no-audit --no-fund
     npm run build
     test -s dist/index.html
     echo HYTOPIA_BROWSER_COMPILED=YES
