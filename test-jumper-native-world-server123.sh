@@ -5,6 +5,12 @@ S=unix:///home/ggul-docker/run/docker.sock
 SRC=/home/jumper-eval/hytopia/source
 IMAGE=node:22-bookworm
 NAME=sf-jumper-world-candidate
+# All 123 organization runners share one candidate container and bundle path.
+# Serialize preparation to stop one job deleting another job's candidate.
+command -v flock >/dev/null 2>&1 || { echo JUMPER_CANDIDATE_BUILD_FLOCK_MISSING; exit 1; }
+exec 9>/tmp/suaveforge-jumper-candidate-build.lock
+flock -w 600 9 || { echo JUMPER_CANDIDATE_BUILD_BUSY; exit 1; }
+trap 'flock -u 9' EXIT
 
 test -s "$PWD/world/playground.ts"
 test -s "$PWD/world/client.js"
@@ -32,9 +38,12 @@ test -s "$PWD/world/client.css"
     echo JUMPER_WORLD_SERVER_BUNDLE=COMPILED
   '
 
-if "$D" -H "$S" inspect "$NAME" >/dev/null 2>&1; then
-  "$D" -H "$S" rm -f "$NAME" >/dev/null
-fi
+for i in $(seq 1 15); do
+  if ! "$D" -H "$S" inspect "$NAME" >/dev/null 2>&1; then break; fi
+  "$D" -H "$S" rm -f "$NAME" >/dev/null 2>&1 || true
+  sleep 1
+done
+test ! "$("$D" -H "$S" ps -a --filter "name=^/$NAME$" --format '{{.Names}}' | grep -x "$NAME" || true)"
 "$D" -H "$S" run -d --name "$NAME" --restart no \
  --network bridge --memory 2g --pids-limit 512 --security-opt no-new-privileges \
  -p 127.0.0.1:18776:8080/tcp \
