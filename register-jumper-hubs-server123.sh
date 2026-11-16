@@ -39,20 +39,20 @@ def request(method,path,payload=None):
  except urllib.error.HTTPError as e:
   raw=e.read(5000).decode()
   return e.code,{'error':raw[:250]}
-status,snapshot=request('GET','/api/snapshot')
+status,catalog=request('GET','/api/integration/projects')
 print('MONITOR_ADMIN_API_HTTP='+str(status))
 if status!=200:raise SystemExit(5)
-items=snapshot.get('projects',snapshot.get('Projects',[]))
-assert isinstance(items,list),'MONITOR_SNAPSHOT_PROJECTS_INVALID'
-exact=[p for p in items if str(p.get('public_url',p.get('PublicURL',''))).rstrip('/').lower()=='https://jumper.suaveforge.com']
-named=[p for p in items if str(p.get('name',p.get('Name',''))).strip().casefold()=='jumper']
-matches={str(p.get('id',p.get('ID',''))):p for p in exact+named}
+items=catalog.get('projects',[])
+assert isinstance(items,list),'MONITOR_CATALOG_PROJECTS_INVALID'
+exact=[p for p in items if str(p.get('public_url','')).rstrip('/').lower()=='https://jumper.suaveforge.com']
+named=[p for p in items if str(p.get('name','')).strip().casefold()=='jumper']
+matches={str(p.get('project_id','')):p for p in exact+named}
 if len(matches)>1:
  print('MONITOR_JUMPER=AMBIGUOUS_CONFLICT_NO_CHANGES')
  raise SystemExit(6)
 if matches:
  project=list(matches.values())[0]
- pid=str(project.get('id',project.get('ID','')))
+ pid=str(project.get('project_id',''))
  print('MONITOR_JUMPER=ALREADY_EXISTS '+pid)
  if not exact:
   print('MONITOR_JUMPER_URL=CONFLICT_NO_CHANGES')
