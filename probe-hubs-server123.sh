@@ -62,8 +62,6 @@ for x in matched:
    code,conf=request(base+'/v1/config/'+pid+'?environment=production')
    print('AUTH_JUMPER_PUBLIC_CONFIG_HTTP='+str(code))
    if code==200: print('AUTH_JUMPER_PUBLIC_CONFIG='+json.dumps({k:conf.get(k) for k in ('project','environment','clientId','signupEnabled','approvalRequired','emailPasswordEnabled','providers')},ensure_ascii=False)[:2000])
-PY
-
 # Browser CORS is a real requirement for the shared AuthHub JS client.
 req=urllib.request.Request(
  'https://api-authhub.suaveforge.com/v1/config/p51?environment=production',
@@ -76,3 +74,5 @@ try:
   print('AUTH_JUMPER_BROWSER_CORS_ALLOWED='+str(resp.headers.get('Access-Control-Allow-Origin')=='https://jumper.suaveforge.com'))
 except Exception as e:
  print('AUTH_JUMPER_BROWSER_CORS_FAILED='+str(type(e).__name__))
+
+PY
