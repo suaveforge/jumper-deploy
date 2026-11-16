@@ -16,7 +16,7 @@ for p in files:
  try:
   for line in p.read_text(errors='replace').splitlines():
    if line.startswith('HUB_TOKEN='):
-    token=line.split('=',1)[1].strip().strip("'\\"")
+    token=line.split('=',1)[1].strip().strip(chr(39)+chr(34))
     if token: break
  except OSError: continue
  if token: break
