@@ -43,6 +43,7 @@ fi
   -v "$DIR/jumper-world-scores.json:/src/server/jumper-world-scores.json:rw" \
   -v "$DIR/data:/var/lib/jumper-tournament:rw" \
   -w /src/server -e PORT=8080 -e NODE_ENV=development \
+  -e JUMPER_NAV_DROP_FIRST_ACK=1 \
   -e JUMPER_TOURNAMENT_DATA_DIR=/var/lib/jumper-tournament \
   node:22-bookworm node src/jumper-world.mjs >/dev/null
 ready=0
