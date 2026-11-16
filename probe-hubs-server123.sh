@@ -1,14 +1,13 @@
 #!/bin/sh
 set -eu
-# Read-only: identify authoritative MONITOR JUMPER project and current Hub connections.
-# Never print HUB_TOKEN, PayHub API/Webhook secrets, provider credentials, user data.
+# Read-only contract check for MONITOR p51, AuthHub and PayHub.
+# Never print hub tokens, API keys, webhooks' secrets, user information or checkout credentials.
 D=/home/ggul-docker/bin/docker
 S=unix:///home/ggul-docker/run/docker.sock
 "$D" -H "$S" run --rm -i --network host --read-only --memory 180m --pids-limit 80 \
  -v /home/authhub-runtime:/h-auth:ro \
- -v /home/payhub:/h-pay:ro \
  python:3.11-alpine python - <<'PY'
-import os,re,json,pathlib,urllib.request,urllib.error
+import json, pathlib, urllib.request, urllib.error
 root=pathlib.Path('/h-auth')
 files=[p for p in root.rglob('*') if p.is_file() and p.name in ('authhub.env','api.env','app.env','production.env')]
 print('AUTHHUB_ENV_FILE_CANDIDATES='+str(len(files)))
@@ -17,62 +16,77 @@ for p in files:
  try:
   for line in p.read_text(errors='replace').splitlines():
    if line.startswith('HUB_TOKEN='):
-    token=line.split('=',1)[1].strip().strip("'\"")
-    if token:break
- except OSError:continue
- if token:break
-def request(url,method='GET',body=None,auth=False):
+    token=line.split('=',1)[1].strip().strip("'\\"")
+    if token: break
+ except OSError: continue
+ if token: break
+def request(url,auth=False):
  headers={'Accept':'application/json'}
- if auth and token:headers['Authorization']='Bearer '+token
- if body is not None:headers['Content-Type']='application/json'
- req=urllib.request.Request(url,data=json.dumps(body).encode() if body is not None else None,
-    headers=headers,method=method)
+ if auth and token: headers['Authorization']='Bearer '+token
+ req=urllib.request.Request(url,headers=headers,method='GET')
  try:
   with urllib.request.urlopen(req,timeout=12) as resp:
-   return resp.status,json.loads(resp.read(70000).decode('utf8'))
+   raw=resp.read(100000).decode('utf-8')
+   try: body=json.loads(raw)
+   except json.JSONDecodeError: body=None
+   return resp.status,body
  except urllib.error.HTTPError as e:
-  return e.code,{'error':e.reason}
+  return e.code,None
  except Exception as e:
-  return 0,{'error':type(e).__name__}
-for name,url in [('AuthHub health','https://api-authhub.suaveforge.com/health'),
- ('AuthHub JWKS','https://api-authhub.suaveforge.com/.well-known/jwks.json'),
- ('PayHub health','https://api-payhub.suaveforge.com/healthz')]:
+  print('REQUEST_TRANSPORT_ERROR='+type(e).__name__)
+  return 0,None
+checks=[]
+for name,url in (
+ ('AUTHHUB_HEALTH','https://api-authhub.suaveforge.com/health'),
+ ('AUTHHUB_JWKS','https://api-authhub.suaveforge.com/.well-known/jwks.json'),
+ ('PAYHUB_HEALTH','https://api-payhub.suaveforge.com/healthz')):
  status,body=request(url)
- print(name.replace(' ','_').upper()+'_HTTP='+str(status))
- print(name.replace(' ','_').upper()+'_JSON='+str(isinstance(body,dict)))
+ print(name+'_HTTP='+str(status))
+ checks.append(status==200 and isinstance(body,dict))
 if not token:
- print('MONITOR_CATALOG=UNAVAILABLE_HUB_TOKEN_NOT_FOUND')
- raise SystemExit(0)
-code,body=request('https://api-monitor.suaveforge.com/api/integration/projects',auth=True)
+ print('HUB_TOKEN_DISCOVERY=NOT_FOUND')
+ raise SystemExit(4)
+code,catalog=request('https://api-monitor.suaveforge.com/api/integration/projects',auth=True)
 print('MONITOR_CATALOG_HTTP='+str(code))
-if code!=200:raise SystemExit(0)
-items=body.get('projects',[]) if isinstance(body,dict) else []
-matched=[x for x in items if 'jumper' in str(x.get('name','')).lower() or 'jumper.suaveforge.com' in str(x.get('public_url','')).lower() or '점퍼' in str(x.get('name',''))]
-print('MONITOR_JUMPER_MATCH_COUNT='+str(len(matched)))
-for x in matched:
- pid=x.get('project_id','')
- print('MONITOR_JUMPER='+json.dumps({k:x.get(k) for k in ('project_id','name','label','public_url','enabled')},ensure_ascii=False))
- if not re.fullmatch(r'p\d{2,}',str(pid)):continue
- for hub,base in [('AUTH','https://api-authhub.suaveforge.com'),('PAY','https://api-payhub.suaveforge.com')]:
-  status,check=request(base+'/api/integration/projects/'+pid,auth=True)
-  print(f'{hub}_JUMPER_INTEGRATION_HTTP='+str(status))
-  if status==200:
-   print(f'{hub}_JUMPER_INTEGRATION='+json.dumps({k:check.get(k) for k in ('project_id','name','connected','enabled')},ensure_ascii=False))
-  if hub=='AUTH':
-   code,conf=request(base+'/v1/config/'+pid+'?environment=production')
-   print('AUTH_JUMPER_PUBLIC_CONFIG_HTTP='+str(code))
-   if code==200: print('AUTH_JUMPER_PUBLIC_CONFIG='+json.dumps({k:conf.get(k) for k in ('project','environment','clientId','signupEnabled','approvalRequired','emailPasswordEnabled','providers')},ensure_ascii=False)[:2000])
-# Browser CORS is a real requirement for the shared AuthHub JS client.
-req=urllib.request.Request(
- 'https://api-authhub.suaveforge.com/v1/config/p51?environment=production',
- method='OPTIONS',
- headers={'Origin':'https://jumper.suaveforge.com','Access-Control-Request-Method':'GET'}
-)
-try:
- with urllib.request.urlopen(req,timeout=12) as resp:
-  print('AUTH_JUMPER_BROWSER_CORS_HTTP='+str(resp.status))
-  print('AUTH_JUMPER_BROWSER_CORS_ALLOWED='+str(resp.headers.get('Access-Control-Allow-Origin')=='https://jumper.suaveforge.com'))
-except Exception as e:
- print('AUTH_JUMPER_BROWSER_CORS_FAILED='+str(type(e).__name__))
-
+projects=catalog.get('projects',[]) if isinstance(catalog,dict) else []
+matches=[x for x in projects if isinstance(x,dict) and x.get('project_id')=='p51'
+ and x.get('name')=='JUMPER' and str(x.get('public_url','')).rstrip('/')=='https://jumper.suaveforge.com']
+print('MONITOR_P51_MATCH_COUNT='+str(len(matches)))
+checks.append(code==200 and len(matches)==1 and matches[0].get('enabled') is True if matches else False)
+code,auth_projects=request('https://api-authhub.suaveforge.com/api/integration/projects',auth=True)
+print('AUTHHUB_PROJECT_LIST_HTTP='+str(code))
+auth_matches=[x for x in auth_projects if isinstance(x,dict) and x.get('project_id')=='p51'] if isinstance(auth_projects,list) else []
+print('AUTHHUB_P51_MATCH_COUNT='+str(len(auth_matches)))
+auth_active=len(auth_matches)==1 and auth_matches[0].get('connected') is True and auth_matches[0].get('enabled') is True
+print('AUTHHUB_P51_CONNECTED='+str(auth_active))
+checks.append(code==200 and auth_active)
+code,conf=request('https://api-authhub.suaveforge.com/v1/config/p51?environment=production')
+print('AUTHHUB_P51_PUBLIC_CONFIG_HTTP='+str(code))
+if not isinstance(conf,dict): conf={}
+is_p51=conf.get('project',{}).get('slug')=='p51' if isinstance(conf.get('project'),dict) else False
+email_enabled=conf.get('emailPasswordEnabled') is True
+providers=conf.get('providers',[]) if isinstance(conf.get('providers'),list) else []
+print('AUTHHUB_P51_EMAIL_PASSWORD_ENABLED='+str(email_enabled))
+print('AUTHHUB_P51_SOCIAL_PROVIDERS='+','.join(str(p) for p in providers) if providers else 'NONE')
+auth_login_ready=code==200 and is_p51 and (email_enabled or bool(providers))
+print('AUTHHUB_P51_LOGIN_METHOD_CONFIGURED='+str(auth_login_ready))
+checks.append(auth_login_ready)
+code,pay_response=request('https://api-payhub.suaveforge.com/api/integration/projects/p51',auth=True)
+print('PAYHUB_P51_INTEGRATION_HTTP='+str(code))
+pay_configured=isinstance(pay_response,dict) and pay_response.get('configured') is True
+pay=pay_response.get('project',{}) if isinstance(pay_response,dict) else {}
+pay=pay if isinstance(pay,dict) else {}
+pay_connected=pay_configured and pay.get('project_id')=='p51' and pay.get('connected') is True and pay.get('enabled') is True
+print('PAYHUB_P51_CONFIGURED='+str(pay_configured))
+print('PAYHUB_P51_CONNECTED='+str(pay_connected))
+pay_providers=pay.get('providers',[]) if isinstance(pay.get('providers'),list) else []
+print('PAYHUB_P51_ENABLED_PROVIDERS='+','.join(str(x.get('id'))+':'+str(x.get('mode')) for x in pay_providers if isinstance(x,dict)) if pay_providers else 'NONE')
+payment_ready=pay_connected and bool(pay_providers)
+print('PAYHUB_P51_CHECKOUT_PROVIDER_READY='+str(payment_ready))
+checks.append(code==200 and pay_connected)
+checks.append(payment_ready)
+print('JUMPER_LOGIN_END_TO_END=NOT_TESTED')
+print('JUMPER_PAYMENT_END_TO_END=NOT_TESTED')
+print('HUB_CONTRACT_CHECK='+('PASS' if all(checks) else 'FAIL'))
+if not all(checks): raise SystemExit(2)
 PY
